@@ -23,10 +23,12 @@ docker build -t etherealpod-operator:v0.1.0 operator/
 docker build -t sunday-app:v0.1.0 sundayapp/
 kind load docker-image etherealpod-operator:v0.1.0 --name sunday
 kind load docker-image sunday-app:v0.1.0 --name sunday
-kubectl apply -f submission.yaml
+kubectl apply --server-side -f submission.yaml
 kubectl wait --for=condition=Established crd/etherealpods.workload.sunday.io
-kubectl apply -f submission.yaml
+kubectl apply --server-side -f submission.yaml
 ```
+
+`--server-side` is required: the EtherealPod CRD embeds the full pod template schema and exceeds the annotation size limit of client-side apply.
 
 On minikube: replace the kind commands with `minikube start` and `minikube image load <image>`; everything else is identical (the default hostPath provisioner backs the PVC).
 

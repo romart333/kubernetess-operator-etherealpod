@@ -43,16 +43,19 @@ step "Loading images into the kind cluster"
 kind load docker-image "${OPERATOR_IMAGE}" --name "${CLUSTER_NAME}"
 kind load docker-image "${APP_IMAGE}" --name "${CLUSTER_NAME}"
 
+# Server-side apply: the EtherealPod CRD embeds the PodTemplateSpec schema
+# and exceeds the 256KiB last-applied-configuration annotation limit of
+# client-side apply.
 step "Applying submission.yaml (first pass)"
 # The CRD and a CR of its kind live in the same file; the first apply can
 # race CRD establishment, so wait and apply once more (idempotent).
-kubectl apply -f "${SCRIPT_DIR}/submission.yaml" || true
+kubectl apply --server-side -f "${SCRIPT_DIR}/submission.yaml" || true
 
 step "Waiting for the EtherealPod CRD to be established"
 kubectl wait --for=condition=Established "crd/${CRD_NAME}" --timeout=60s
 
 step "Applying submission.yaml (second pass)"
-kubectl apply -f "${SCRIPT_DIR}/submission.yaml"
+kubectl apply --server-side -f "${SCRIPT_DIR}/submission.yaml"
 
 step "Waiting for the operator deployment to become Available"
 kubectl wait -n etherealpod-system deploy/etherealpod-controller-manager \

@@ -14,4 +14,7 @@ spec:
         - name: main
           image: alpine:3.20
           imagePullPolicy: IfNotPresent
-          command: ["sh", "-c", "sleep 3600"]
+          # Backgrounding keeps sh as PID 1 (a bare `sh -c "sleep ..."` is
+          # exec-optimized into sleep itself, and PID 1 ignores signals it
+          # has no handler for — the crash demo would be impossible).
+          command: ["sh", "-c", "sleep 3600 & wait $!"]
