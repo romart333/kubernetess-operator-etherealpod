@@ -1,0 +1,67 @@
+# SundayApp deployed as an EtherealPod (dogfooding the operator):
+# the managed pod keeps its SQLite database on a PVC, so data survives
+# container crashes and full pod recreation.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sunday-data
+  namespace: sunday
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: workload.sunday.io/v1alpha1
+kind: EtherealPod
+metadata:
+  name: sunday-app
+  namespace: sunday
+spec:
+  template:
+    metadata:
+      labels:
+        app: sunday-app
+    spec:
+      # Short grace period keeps recreation demos snappy; the app shuts
+      # down gracefully on SIGTERM well within this window.
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: sunday-app
+          image: sunday-app:v0.1.0
+          # IfNotPresent + pinned tag: required for images loaded with
+          # `kind load docker-image` (Always would hit the registry).
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sunday-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sunday-app
+  namespace: sunday
+spec:
+  type: ClusterIP
+  selector:
+    app: sunday-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
