@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - workload.sunday.io
+  resources:
+  - etherealpods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - workload.sunday.io
+  resources:
+  - etherealpods/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - workload.sunday.io
+  resources:
+  - etherealpods/status
+  verbs:
+  - get
+  - patch
+  - update
