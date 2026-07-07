@@ -27,6 +27,12 @@ import (
 	workloadv1alpha1 "github.com/romankopylov/etherealpod-operator/api/v1alpha1"
 )
 
+// UIDs of two consecutive pod incarnations in the accounting scenarios.
+const (
+	uidFirst  types.UID = "uid-1"
+	uidSecond types.UID = "uid-2"
+)
+
 func podWithRestarts(uid types.UID, restartCounts ...int32) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "example-ep", UID: uid},
@@ -54,18 +60,18 @@ func TestApplyRestartAccounting(t *testing.T) {
 		{
 			name:   "adoption of the first pod",
 			status: workloadv1alpha1.EtherealPodStatus{},
-			pod:    podWithRestarts("uid-1", 0),
+			pod:    podWithRestarts(uidFirst, 0),
 			want: workloadv1alpha1.EtherealPodStatus{
-				PodUID: "uid-1",
+				PodUID: uidFirst,
 			},
 		},
 		{
 			name:   "adoption of a pod already reporting restarts",
 			status: workloadv1alpha1.EtherealPodStatus{},
-			pod:    podWithRestarts("uid-1", 2),
+			pod:    podWithRestarts(uidFirst, 2),
 			want: workloadv1alpha1.EtherealPodStatus{
 				Restarts:            2,
-				PodUID:              "uid-1",
+				PodUID:              uidFirst,
 				ObservedPodRestarts: 2,
 			},
 		},
@@ -73,43 +79,43 @@ func TestApplyRestartAccounting(t *testing.T) {
 			name: "same incarnation updates live count",
 			status: workloadv1alpha1.EtherealPodStatus{
 				Restarts:            1,
-				PodUID:              "uid-1",
+				PodUID:              uidFirst,
 				ObservedPodRestarts: 1,
 			},
-			pod: podWithRestarts("uid-1", 3),
+			pod: podWithRestarts(uidFirst, 3),
 			want: workloadv1alpha1.EtherealPodStatus{
 				Restarts:            3,
-				PodUID:              "uid-1",
+				PodUID:              uidFirst,
 				ObservedPodRestarts: 3,
 			},
 		},
 		{
 			name: "multi-container restarts are summed",
 			status: workloadv1alpha1.EtherealPodStatus{
-				PodUID: "uid-1",
+				PodUID: uidFirst,
 			},
-			pod: podWithRestarts("uid-1", 2, 3),
+			pod: podWithRestarts(uidFirst, 2, 3),
 			want: workloadv1alpha1.EtherealPodStatus{
 				Restarts:            5,
-				PodUID:              "uid-1",
+				PodUID:              uidFirst,
 				ObservedPodRestarts: 5,
 			},
 		},
 		{
 			name: "pod without container statuses yet reports zero live",
 			status: workloadv1alpha1.EtherealPodStatus{
-				PodUID: "uid-1",
+				PodUID: uidFirst,
 			},
-			pod: podWithRestarts("uid-1"),
+			pod: podWithRestarts(uidFirst),
 			want: workloadv1alpha1.EtherealPodStatus{
-				PodUID: "uid-1",
+				PodUID: uidFirst,
 			},
 		},
 		{
 			name: "pod disappearance banks observed count plus one",
 			status: workloadv1alpha1.EtherealPodStatus{
 				Restarts:            2,
-				PodUID:              "uid-1",
+				PodUID:              uidFirst,
 				ObservedPodRestarts: 2,
 			},
 			pod: nil,
@@ -124,25 +130,25 @@ func TestApplyRestartAccounting(t *testing.T) {
 				Restarts:       3,
 				BankedRestarts: 3,
 			},
-			pod: podWithRestarts("uid-2", 0),
+			pod: podWithRestarts(uidSecond, 0),
 			want: workloadv1alpha1.EtherealPodStatus{
 				Restarts:       3,
 				BankedRestarts: 3,
-				PodUID:         "uid-2",
+				PodUID:         uidSecond,
 			},
 		},
 		{
 			name: "direct UID swap banks and adopts in one pass",
 			status: workloadv1alpha1.EtherealPodStatus{
 				Restarts:            2,
-				PodUID:              "uid-1",
+				PodUID:              uidFirst,
 				ObservedPodRestarts: 2,
 			},
-			pod: podWithRestarts("uid-2", 0),
+			pod: podWithRestarts(uidSecond, 0),
 			want: workloadv1alpha1.EtherealPodStatus{
 				Restarts:       3,
 				BankedRestarts: 3,
-				PodUID:         "uid-2",
+				PodUID:         uidSecond,
 			},
 		},
 		{
@@ -150,13 +156,13 @@ func TestApplyRestartAccounting(t *testing.T) {
 			status: workloadv1alpha1.EtherealPodStatus{
 				Restarts:       3,
 				BankedRestarts: 3,
-				PodUID:         "uid-2",
+				PodUID:         uidSecond,
 			},
-			pod: podWithRestarts("uid-2", 4),
+			pod: podWithRestarts(uidSecond, 4),
 			want: workloadv1alpha1.EtherealPodStatus{
 				Restarts:            7,
 				BankedRestarts:      3,
-				PodUID:              "uid-2",
+				PodUID:              uidSecond,
 				ObservedPodRestarts: 4,
 			},
 		},
