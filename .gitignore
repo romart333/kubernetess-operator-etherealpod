@@ -1,0 +1,35 @@
+# Compiled binaries and package files
+bin/
+pkg/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test artifacts and coverage profiles
+*.test
+*.out
+*.coverprofile
+profile.cov
+
+# Dependency directories
+# (Only uncomment vendor/ if you strictly do not want to commit dependencies)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Local environment variables and secrets
+.env
+.env.local
+
+# Common IDEs and Editors (Optional - better kept in your global gitignore)
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
