@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -269,16 +271,109 @@ var _ = Describe("Manager", Ordered, func() {
 		})
 
 		// +kubebuilder:scaffold:e2e-webhooks-checks
+	})
 
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput, err := getMetricsOutput()
-		// Expect(err).NotTo(HaveOccurred(), "Failed to retrieve logs from curl pod")
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+	Context("EtherealPod", Ordered, func() {
+		const (
+			crNamespace    = "etherealpod-e2e"
+			crName         = "etherealpod-sample"
+			sampleManifest = "config/samples/workload_v1alpha1_etherealpod.yaml"
+		)
+
+		BeforeAll(func() {
+			By("creating the namespace for the EtherealPod CR")
+			cmd := exec.Command("kubectl", "create", "ns", crNamespace)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to create the CR namespace")
+
+			By("applying the sample EtherealPod")
+			cmd = exec.Command("kubectl", "apply", "-n", crNamespace, "-f", sampleManifest)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply the sample EtherealPod")
+		})
+
+		AfterAll(func() {
+			By("deleting the sample EtherealPod")
+			cmd := exec.Command("kubectl", "delete", "-n", crNamespace, "-f", sampleManifest,
+				"--ignore-not-found")
+			_, _ = utils.Run(cmd)
+
+			By("removing the CR namespace")
+			cmd = exec.Command("kubectl", "delete", "ns", crNamespace)
+			_, _ = utils.Run(cmd)
+		})
+
+		It("should run exactly one managed pod and report it Ready", func() {
+			By("waiting for the managed pod to be running")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", crName, "-n", crNamespace,
+					"-o", "jsonpath={.status.phase}")
+				phase, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(phase).To(Equal("Running"), "Managed pod is not running")
+			}).Should(Succeed())
+
+			By("waiting for the EtherealPod to report Ready")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "etherealpod", crName, "-n", crNamespace,
+					"-o", "jsonpath={.status.conditions[?(@.type=='Ready')].status}")
+				out, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(out).To(Equal("True"), "EtherealPod is not Ready")
+			}).Should(Succeed())
+
+			By("verifying exactly one pod exists in the CR namespace")
+			cmd := exec.Command("kubectl", "get", "pods", "-n", crNamespace, "-o", "name")
+			out, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(utils.GetNonEmptyLines(out)).To(HaveLen(1), "expected exactly one managed pod")
+		})
+
+		It("should recreate the pod and increase restarts after deletion", func() {
+			By("recording the UID of the current pod incarnation")
+			cmd := exec.Command("kubectl", "get", "pod", crName, "-n", crNamespace,
+				"-o", "jsonpath={.metadata.uid}")
+			oldUID, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(oldUID).NotTo(BeEmpty())
+
+			By("deleting the managed pod")
+			cmd = exec.Command("kubectl", "delete", "pod", crName, "-n", crNamespace)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to delete the managed pod")
+
+			By("waiting for a replacement pod to be running")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", crName, "-n", crNamespace,
+					"-o", "jsonpath={.metadata.uid} {.status.phase}")
+				out, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				fields := strings.Fields(out)
+				g.Expect(fields).To(HaveLen(2), "unexpected pod output: %q", out)
+				g.Expect(fields[0]).NotTo(Equal(oldUID), "pod was not replaced")
+				g.Expect(fields[1]).To(Equal("Running"), "replacement pod is not running")
+			}).Should(Succeed())
+
+			By("verifying the restart counter increased")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "etherealpod", crName, "-n", crNamespace,
+					"-o", "jsonpath={.status.restarts}")
+				out, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				restarts, convErr := strconv.Atoi(strings.TrimSpace(out))
+				g.Expect(convErr).NotTo(HaveOccurred(), "restarts is not a number: %q", out)
+				g.Expect(restarts).To(BeNumerically(">=", 1), "restart count did not increase")
+			}).Should(Succeed())
+
+			By("waiting for the EtherealPod to report Ready again")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "etherealpod", crName, "-n", crNamespace,
+					"-o", "jsonpath={.status.conditions[?(@.type=='Ready')].status}")
+				out, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(out).To(Equal("True"), "EtherealPod did not become Ready after recovery")
+			}).Should(Succeed())
+		})
 	})
 })
 
