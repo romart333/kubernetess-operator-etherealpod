@@ -5,6 +5,8 @@ Two components in one repository:
 - **EtherealPod** — a namespaced CRD (`etherealpods.workload.sunday.io/v1alpha1`, short name `eps`) and a kubebuilder-v4 operator that guarantees **exactly one running pod** per CR, self-heals it, and reports a **cumulative restart counter** that survives pod recreation and operator restarts.
 - **SundayApp** — a small groceries HTTP API (Go + SQLite on a PVC) that never loses data, deployed *as an EtherealPod* to demonstrate the operator end to end.
 
+📹 **Video walkthrough**: <https://www.youtube.com/watch?v=_Ae0ozN2eGg> — an end-to-end demo and an explanation of how the project is designed: the architecture decisions, the code, and the edge cases.
+
 ## How to run
 
 Prerequisites: `docker`, `kubectl`, `kind` (the script checks and tells you what is missing; nothing is auto-installed).
